@@ -25,6 +25,7 @@ export const CameraView: React.FC = () => {
     // Step 4: AI Analysis
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+    const [analysisStatus, setAnalysisStatus] = useState<string>(''); // New state for status updates
 
     // Load comparison photo when selection changes
     useEffect(() => {
@@ -33,7 +34,10 @@ export const CameraView: React.FC = () => {
         const path = `/DiffShame/photos/${selectedComparisonMonth}/${selectedSection}.jpg`;
         const img = new Image();
         img.onload = () => setComparisonPhoto(path);
-        img.onerror = () => setComparisonPhoto(null);
+        img.onerror = () => {
+            console.error(`Failed to load comparison photo: ${path}`);
+            setComparisonPhoto(null);
+        };
         img.src = path;
     }, [selectedSection, selectedComparisonMonth]);
 
@@ -56,6 +60,7 @@ export const CameraView: React.FC = () => {
         setShowCamera(true);
         setCapturedPhoto(null);
         setAnalysisResult(null);
+        setAnalysisStatus('');
     };
 
     const handleCapture = async () => {
@@ -77,7 +82,7 @@ export const CameraView: React.FC = () => {
     const handleAnalyze = async () => {
         if (!capturedPhoto || !comparisonPhoto) return;
 
-        // Check for API key in environment variable or localStorage
+        // Check for API key
         let apiKey = import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('gemini_api_key');
 
         if (!apiKey) {
@@ -88,28 +93,58 @@ export const CameraView: React.FC = () => {
         }
 
         setIsAnalyzing(true);
+        setAnalysisStatus('Preparing images...');
 
         try {
+            // 1. Prepare Current Image
             const currentBase64 = capturedPhoto.split(',')[1];
 
+            // 2. Prepare Comparison Image
+            setAnalysisStatus('Loading comparison photo...');
             const response = await fetch(comparisonPhoto);
+            if (!response.ok) throw new Error(`Failed to fetch comparison photo: ${response.statusText}`);
             const blob = await response.blob();
+
             const reader = new FileReader();
+            reader.onerror = () => {
+                throw new Error('Failed to read comparison photo');
+            };
 
             reader.onloadend = async () => {
-                const previousBase64 = (reader.result as string).split(',')[1];
+                try {
+                    const previousBase64 = (reader.result as string).split(',')[1];
 
-                const gemini = new GeminiService(apiKey);
-                const result = await gemini.analyzeImages(currentBase64, previousBase64);
-                setAnalysisResult(result);
-                setIsAnalyzing(false);
+                    // 3. Call Gemini
+                    setAnalysisStatus('Sending to Gemini (this may take 10-15s)...');
+                    const gemini = new GeminiService(apiKey!); // apiKey is checked above
+
+                    // Add timeout race
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Analysis timed out after 30s')), 30000)
+                    );
+
+                    const result = await Promise.race([
+                        gemini.analyzeImages(currentBase64, previousBase64),
+                        timeoutPromise
+                    ]) as AnalysisResult;
+
+                    setAnalysisResult(result);
+                    setIsAnalyzing(false);
+                    setAnalysisStatus('');
+                } catch (e: any) {
+                    console.error("Gemini Error:", e);
+                    alert(`Analysis failed: ${e.message || 'Unknown error'}`);
+                    setIsAnalyzing(false);
+                    setAnalysisStatus('Failed');
+                }
             };
 
             reader.readAsDataURL(blob);
-        } catch (e) {
-            console.error("Analysis failed", e);
-            alert("Analysis failed. Check your API key and try again.");
+        } catch (e: any) {
+            console.error("Preparation Error:", e);
+            alert(`Error preparing analysis: ${e.message}`);
             setIsAnalyzing(false);
+            setAnalysisStatus('Failed');
         }
     };
 
@@ -215,84 +250,90 @@ export const CameraView: React.FC = () => {
             )}
 
             {/* Step 3 & 4: Comparison Slider + AI Analysis */}
-            {capturedPhoto && comparisonPhoto && (
+            {capturedPhoto && comparisonPhoto && !showCamera && (
                 <div className="space-y-6">
                     {/* Comparison Slider */}
-                    <div className="relative aspect-video bg-black rounded-lg overflow-hidden shadow-xl border border-gray-800">
-                        {/* New photo (background) */}
+                    <div className="relative aspect-video bg-black rounded-lg overflow-hidden shadow-xl border border-gray-800 select-none group">
+                        {/* New photo (background - "After") */}
                         <img
                             src={capturedPhoto}
                             className="absolute inset-0 w-full h-full object-cover"
-                            alt="Current"
+                            alt="Current (After)"
                         />
 
-                        {/* Old photo (clipped) */}
-                        <div
-                            className="absolute inset-0 overflow-hidden"
-                            style={{ width: `${sliderPosition}%` }}
-                        >
-                            <img
-                                src={comparisonPhoto}
-                                className="absolute inset-0 w-full h-full object-cover"
-                                style={{ width: `${100 / (sliderPosition / 100)}%` }}
-                                alt="Previous"
-                            />
-                        </div>
+                        {/* Old photo (foreground - "Before") - using clip-path for correct resizing */}
+                        <img
+                            src={comparisonPhoto}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            style={{
+                                clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`
+                            }}
+                            alt="Previous (Before)"
+                        />
 
                         {/* Slider handle */}
                         <div
-                            className="absolute top-0 bottom-0 w-1 bg-white shadow-lg"
+                            className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_10px_rgba(0,0,0,0.5)] cursor-ew-resize"
                             style={{ left: `${sliderPosition}%` }}
                         >
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-xl text-black font-bold">
-                                ⟷
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg text-black">
+                                <span className="text-xs font-bold">⟷</span>
                             </div>
                         </div>
 
+                        {/* Interaction Layer */}
                         <input
                             type="range"
                             min="0"
                             max="100"
                             value={sliderPosition}
                             onChange={(e) => setSliderPosition(parseFloat(e.target.value))}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-10"
                         />
 
-                        <div className="absolute bottom-4 left-4 bg-black/70 px-3 py-1 rounded text-xs text-white">
-                            {selectedComparisonMonth}
+                        {/* Labels */}
+                        <div className="absolute bottom-4 left-4 bg-black/70 px-3 py-1 rounded text-xs text-white pointer-events-none z-0">
+                            {selectedComparisonMonth} (Before)
                         </div>
-                        <div className="absolute bottom-4 right-4 bg-black/70 px-3 py-1 rounded text-xs text-white">
-                            Now
+                        <div className="absolute bottom-4 right-4 bg-black/70 px-3 py-1 rounded text-xs text-white pointer-events-none z-0">
+                            Now (After)
                         </div>
                     </div>
 
                     {/* Action Buttons */}
                     {!analysisResult && (
-                        <div className="flex gap-3">
-                            <button
-                                onClick={handleRetake}
-                                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
-                            >
-                                <X size={20} />
-                                Retake
-                            </button>
-                            <button
-                                onClick={handleAnalyze}
-                                disabled={isAnalyzing}
-                                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-primary to-accent text-white rounded-lg font-semibold transition-all hover:scale-105 disabled:opacity-50"
-                            >
-                                {isAnalyzing ? (
-                                    <>
-                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        Analyzing...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Flame size={20} />
-                                        Get Roasted by AI
-                                    </>
-                                )}
-                            </button>
+                        <div className="flex flex-col gap-3">
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={handleRetake}
+                                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+                                >
+                                    <X size={20} />
+                                    Retake
+                                </button>
+                                <button
+                                    onClick={handleAnalyze}
+                                    disabled={isAnalyzing}
+                                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-primary to-accent text-white rounded-lg font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                                >
+                                    {isAnalyzing ? (
+                                        <>
+                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            Analyzing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Flame size={20} />
+                                            Get Roasted by AI
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                            {isAnalyzing && (
+                                <p className="text-center text-sm text-muted animate-pulse">
+                                    {analysisStatus}
+                                </p>
+                            )}
                         </div>
                     )}
 
