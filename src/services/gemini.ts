@@ -15,16 +15,26 @@ export class GeminiService {
     async analyzeImages(currentImageBase64: string, previousImageBase64: string): Promise<AnalysisResult> {
         const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-        const prompt = `Compare these two images of the same room sector taken one month apart. 
-    1. List items that are in the exact same position (candidates for stagnation/clutter).
-    2. Identify new items that appear to be trash.
-    
-    Return valid JSON with this structure:
-    {
-      "stagnantItems": ["item 1", "item 2"],
-      "trashItems": ["item 1", "item 2"]
-    }
-    Do not include markdown formatting or code blocks in the response. Just the raw JSON string.`;
+        const prompt = `You're a brutally honest cleaning coach analyzing someone's room progress. Compare these two images taken one month apart.
+
+Be direct and a bit harsh (but still helpful):
+
+1. List items that are in the exact same position as last month (these are "collecting dust" and probably not being used).
+2. Identify new mess, clutter, or trash that appeared.
+
+Focus on:
+- Things that clearly haven't moved in a month (clothes on chairs, random items on surfaces, etc.)
+- New mess that was added
+- Unused items taking up space
+- General disorganization
+
+Return ONLY raw JSON (no markdown, no code blocks) with this structure:
+{
+  "stagnantItems": ["具体的 item that hasn't moved in a month", "another stagnant item"],
+  "trashItems": ["new mess or clutter item", "another trash/clutter item"]
+}
+
+Be specific about what you see. Call out the laziness. No sugarcoating.`;
 
         const result = await model.generateContent([
             prompt,
