@@ -81,4 +81,41 @@ export class GitHubService {
             reader.onerror = (error) => reject(error);
         });
     }
+
+    /**
+     * List all available month directories in data/
+     * Returns array of month strings like "2024-11", "2024-12"
+     */
+    async listAvailableMonths(): Promise<string[]> {
+        try {
+            const files = await this.listFiles('data');
+            const months = files
+                .filter(f => f.type === 'dir')
+                .map(f => f.name)
+                .filter(name => /^\d{4}-\d{2}$/.test(name)) // Match YYYY-MM format
+                .sort()
+                .reverse(); // Most recent first
+            return months;
+        } catch (e) {
+            console.error('Error listing months:', e);
+            return [];
+        }
+    }
+
+    /**
+     * List all sectors (images) available for a given month
+     * Returns array of sector names like "Desk", "Bed"
+     */
+    async listSectorsForMonth(month: string): Promise<string[]> {
+        try {
+            const files = await this.listFiles(`data/${month}`);
+            const sectors = files
+                .filter(f => f.type === 'file' && f.name.endsWith('.jpg'))
+                .map(f => f.name.replace('.jpg', ''));
+            return sectors;
+        } catch (e) {
+            console.error(`Error listing sectors for ${month}:`, e);
+            return [];
+        }
+    }
 }

@@ -11,6 +11,7 @@ interface UseCameraReturn {
 
 export const useCamera = (): UseCameraReturn => {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const streamRef = useRef<MediaStream | null>(null);
     const [stream, setStream] = useState<MediaStream | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -20,6 +21,7 @@ export const useCamera = (): UseCameraReturn => {
                 video: { facingMode: 'environment' }, // Prefer back camera on mobile
                 audio: false,
             });
+            streamRef.current = mediaStream;
             setStream(mediaStream);
             if (videoRef.current) {
                 videoRef.current.srcObject = mediaStream;
@@ -32,14 +34,15 @@ export const useCamera = (): UseCameraReturn => {
     }, []);
 
     const stopCamera = useCallback(() => {
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
             setStream(null);
         }
-    }, [stream]);
+    }, []);
 
     const captureImage = useCallback(async (): Promise<string | null> => {
-        if (!videoRef.current || !stream) return null;
+        if (!videoRef.current || !streamRef.current) return null;
 
         const video = videoRef.current;
         const canvas = document.createElement('canvas');
@@ -51,14 +54,17 @@ export const useCamera = (): UseCameraReturn => {
 
         ctx.drawImage(video, 0, 0);
         return canvas.toDataURL('image/jpeg', 0.8); // Return base64 JPEG
-    }, [stream]);
+    }, []);
 
     useEffect(() => {
         // Cleanup on unmount
         return () => {
-            stopCamera();
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(track => track.stop());
+                streamRef.current = null;
+            }
         };
-    }, [stopCamera]);
+    }, []);
 
     return {
         videoRef,

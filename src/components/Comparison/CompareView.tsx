@@ -12,7 +12,7 @@ export const CompareView: React.FC = () => {
     const [sectors] = useState<string[]>(['Desk', 'Bed', 'Closet', 'North Wall']);
     const [selectedSector, setSelectedSector] = useState<string>(sectors[0]);
 
-    // Simplified date selection for demo
+    const [availableMonths, setAvailableMonths] = useState<string[]>([]);
     const [date1, setDate1] = useState<string>('');
     const [date2, setDate2] = useState<string>('');
 
@@ -23,18 +23,27 @@ export const CompareView: React.FC = () => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
 
+    // Fetch available months on mount
     useEffect(() => {
-        // Initialize dates to current and previous month
-        const now = new Date();
-        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const fetchAvailableMonths = async () => {
+            if (!githubToken || !githubUsername || !githubRepo) return;
 
-        const prev = new Date();
-        prev.setMonth(prev.getMonth() - 1);
-        const prevMonth = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+            const gh = new GitHubService(githubToken, githubUsername, githubRepo);
+            const months = await gh.listAvailableMonths();
+            setAvailableMonths(months);
 
-        setDate1(prevMonth);
-        setDate2(currentMonth);
-    }, []);
+            // Auto-select most recent 2 months if available
+            if (months.length >= 2) {
+                setDate1(months[1]); // Second most recent
+                setDate2(months[0]); // Most recent
+            } else if (months.length === 1) {
+                setDate1(months[0]);
+                setDate2(months[0]);
+            }
+        };
+
+        fetchAvailableMonths();
+    }, [githubToken, githubUsername, githubRepo]);
 
     useEffect(() => {
         const fetchImages = async () => {
@@ -103,26 +112,51 @@ export const CompareView: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between gap-4 bg-surface p-3 rounded-lg border border-gray-800">
-                    <input
-                        type="month"
+                    <select
                         value={date1}
                         onChange={(e) => setDate1(e.target.value)}
-                        className="bg-transparent text-white outline-none text-sm"
-                    />
-                    <ArrowRight size={16} className="text-muted" />
-                    <input
-                        type="month"
+                        className="bg-transparent text-white outline-none text-sm cursor-pointer flex-1"
+                        disabled={availableMonths.length === 0}
+                    >
+                        {availableMonths.length === 0 ? (
+                            <option>No data available</option>
+                        ) : (
+                            availableMonths.map(month => (
+                                <option key={month} value={month}>
+                                    {new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                                </option>
+                            ))
+                        )}
+                    </select>
+                    <ArrowRight size={16} className="text-muted flex-shrink-0" />
+                    <select
                         value={date2}
                         onChange={(e) => setDate2(e.target.value)}
-                        className="bg-transparent text-white outline-none text-sm text-right"
-                    />
+                        className="bg-transparent text-white outline-none text-sm text-right cursor-pointer flex-1"
+                        disabled={availableMonths.length === 0}
+                    >
+                        {availableMonths.length === 0 ? (
+                            <option>No data available</option>
+                        ) : (
+                            availableMonths.map(month => (
+                                <option key={month} value={month}>
+                                    {new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                                </option>
+                            ))
+                        )}
+                    </select>
                 </div>
             </div>
 
             <div className="relative aspect-video bg-black rounded-lg overflow-hidden shadow-xl border border-gray-800 mb-6 group select-none">
                 {!image1 || !image2 ? (
-                    <div className="flex items-center justify-center h-full text-muted">
-                        Select dates with images to compare
+                    <div className="flex flex-col items-center justify-center h-full text-muted p-8 text-center">
+                        <p className="text-lg mb-2">No images to compare</p>
+                        {availableMonths.length === 0 ? (
+                            <p className="text-sm">Take your first photo in the Camera tab to get started!</p>
+                        ) : (
+                            <p className="text-sm">Select different months with photos for this sector</p>
+                        )}
                     </div>
                 ) : (
                     <>

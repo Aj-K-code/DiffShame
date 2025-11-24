@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useCamera } from '../../hooks/useCamera';
 import { useSettings } from '../../contexts/SettingsContext';
 import { GitHubService } from '../../services/github';
-import { Ghost, Plus, Check } from 'lucide-react';
+import { Ghost, Plus, Check, X } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export const CameraView: React.FC = () => {
@@ -17,26 +17,25 @@ export const CameraView: React.FC = () => {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
+    // Photo preview state
+    const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+    const [showPreview, setShowPreview] = useState(false);
+
+    // Start camera once on mount
     useEffect(() => {
         startCamera();
         return () => stopCamera();
-    }, [startCamera, stopCamera]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Only run on mount/unmount
 
+    // Fetch ghost image when sector changes
     useEffect(() => {
-        // Fetch previous image for the selected sector to use as ghost
         const fetchPreviousImage = async () => {
             if (!githubToken || !githubUsername || !githubRepo) return;
 
             const gh = new GitHubService(githubToken, githubUsername, githubRepo);
 
-            // Logic to find the "previous" month's image
-            // For simplicity, let's try to find the most recent image for this sector
-            // In a real app, we might list folders and find the latest one
-
-            // For now, let's just try to fetch a hypothetical "previous" image
-            // Or maybe we just list all files in `data / ` and find the latest matching the sector
-
-            // Simplified: Check last month.
+            // Try to fetch previous month's image for this sector
             const date = new Date();
             date.setMonth(date.getMonth() - 1);
             const lastMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -58,6 +57,18 @@ export const CameraView: React.FC = () => {
         const imageData = await captureImage();
         if (!imageData) return;
 
+        setCapturedPhoto(imageData);
+        setShowPreview(true);
+    };
+
+    const handleRetake = () => {
+        setCapturedPhoto(null);
+        setShowPreview(false);
+    };
+
+    const handleConfirm = async () => {
+        if (!capturedPhoto) return;
+
         setIsUploading(true);
         setUploadStatus('idle');
 
@@ -65,7 +76,7 @@ export const CameraView: React.FC = () => {
             const gh = new GitHubService(githubToken, githubUsername, githubRepo);
 
             // Convert base64 to File object
-            const res = await fetch(imageData);
+            const res = await fetch(capturedPhoto);
             const blob = await res.blob();
             const file = new File([blob], `${selectedSector}.jpg`, { type: 'image/jpeg' });
 
@@ -75,6 +86,12 @@ export const CameraView: React.FC = () => {
 
             await gh.uploadImage(path, file, `Update ${selectedSector} for ${currentMonth}`);
             setUploadStatus('success');
+            setShowPreview(false);
+            setCapturedPhoto(null);
+
+            // Update ghost image with the newly captured photo
+            setGhostImage(capturedPhoto);
+
             setTimeout(() => setUploadStatus('idle'), 3000);
         } catch (e) {
             console.error("Upload failed", e);
@@ -163,15 +180,61 @@ export const CameraView: React.FC = () => {
                         uploadStatus === 'error' && "border-red-500 bg-red-500/20"
                     )}
                 >
-                    {isUploading ? (
-                        <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : uploadStatus === 'success' ? (
+                    {uploadStatus === 'success' ? (
                         <Check size={32} className="text-green-500" />
                     ) : (
                         <div className="w-16 h-16 bg-white rounded-full" />
                     )}
                 </button>
             </div>
+
+            {/* Photo Preview Modal */}
+            {showPreview && capturedPhoto && (
+                <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
+                    <div className="max-w-2xl w-full bg-surface rounded-2xl overflow-hidden border border-gray-700 shadow-2xl">
+                        <div className="p-4 border-b border-gray-800">
+                            <h2 className="text-xl font-semibold text-white">Preview Photo</h2>
+                            <p className="text-sm text-muted mt-1">Does this look good?</p>
+                        </div>
+
+                        <div className="relative aspect-video bg-black">
+                            <img
+                                src={capturedPhoto}
+                                alt="Captured preview"
+                                className="w-full h-full object-contain"
+                            />
+                        </div>
+
+                        <div className="p-4 flex gap-3">
+                            <button
+                                onClick={handleRetake}
+                                disabled={isUploading}
+                                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                            >
+                                <X size={20} />
+                                Retake
+                            </button>
+                            <button
+                                onClick={handleConfirm}
+                                disabled={isUploading}
+                                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-primary to-accent text-white rounded-lg font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                            >
+                                {isUploading ? (
+                                    <>
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        Saving...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check size={20} />
+                                        Looks Good
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
