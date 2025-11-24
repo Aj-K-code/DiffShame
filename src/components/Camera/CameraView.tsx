@@ -152,7 +152,7 @@ export const CameraView: React.FC = () => {
                         >
                             {AVAILABLE_MONTHS.map(month => (
                                 <option key={month} value={month}>
-                                    {new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                                    {new Date(month + '-01T12:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
                                 </option>
                             ))}
                         </select>
