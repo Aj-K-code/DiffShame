@@ -53,7 +53,7 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <SettingsProvider>
-      <Router>
+      <Router basename={import.meta.env.BASE_URL}>
         <AppContent />
       </Router>
     </SettingsProvider>
