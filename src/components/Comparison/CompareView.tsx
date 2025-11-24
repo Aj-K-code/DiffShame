@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, AlertCircle, Sparkles, AlertTriangle, Trash2, Key } from 'lucide-react';
+import { ArrowRight, AlertCircle } from 'lucide-react';
 import { clsx } from 'clsx';
-import { GeminiService, type AnalysisResult } from '../../services/gemini';
 
 const SECTIONS = ['Door', 'Desktop', 'Bed', 'Couch', 'Workdesk'];
 
@@ -19,20 +18,6 @@ export const CompareView: React.FC = () => {
     const [image2Error, setImage2Error] = useState(false);
 
     const [sliderPosition, setSliderPosition] = useState(50);
-
-    // AI Analysis state
-    const [geminiApiKey, setGeminiApiKey] = useState<string>('');
-    const [showApiKeyInput, setShowApiKeyInput] = useState(false);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-
-    // Load API key from localStorage on mount
-    useEffect(() => {
-        const savedKey = localStorage.getItem('gemini_api_key');
-        if (savedKey) {
-            setGeminiApiKey(savedKey);
-        }
-    }, []);
 
     useEffect(() => {
         // Load images from public/photos folder
@@ -156,7 +141,7 @@ export const CompareView: React.FC = () => {
                             style={{ left: `${sliderPosition}%` }}
                         >
                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg text-black">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                < svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M18 8L22 12L18 16" />
                                     <path d="M6 8L2 12L6 16" />
                                 </svg>
