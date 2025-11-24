@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, AlertCircle } from 'lucide-react';
+import { ArrowRight, AlertCircle, Sparkles, AlertTriangle, Trash2, Key } from 'lucide-react';
 import { clsx } from 'clsx';
+import { GeminiService, type AnalysisResult } from '../../services/gemini';
 
 const SECTIONS = ['Door', 'Desktop', 'Bed', 'Couch', 'Workdesk'];
 
@@ -18,6 +19,20 @@ export const CompareView: React.FC = () => {
     const [image2Error, setImage2Error] = useState(false);
 
     const [sliderPosition, setSliderPosition] = useState(50);
+
+    // AI Analysis state
+    const [geminiApiKey, setGeminiApiKey] = useState<string>('');
+    const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+
+    // Load API key from localStorage on mount
+    useEffect(() => {
+        const savedKey = localStorage.getItem('gemini_api_key');
+        if (savedKey) {
+            setGeminiApiKey(savedKey);
+        }
+    }, []);
 
     useEffect(() => {
         // Load images from public/photos folder
