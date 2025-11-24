@@ -1,19 +1,16 @@
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { SettingsProvider } from './contexts/SettingsContext';
 import { CameraView } from './components/Camera/CameraView';
 import { CompareView } from './components/Comparison/CompareView';
-import { SettingsPage } from './components/Settings/SettingsPage';
-import { Camera, History, Settings } from 'lucide-react';
+import { Upload, History } from 'lucide-react';
 import { clsx } from 'clsx';
 
 const Navigation: React.FC = () => {
   const location = useLocation();
 
   const navItems = [
-    { path: '/', icon: Camera, label: 'Camera' },
+    { path: '/', icon: Upload, label: 'Instructions' },
     { path: '/compare', icon: History, label: 'Compare' },
-    { path: '/settings', icon: Settings, label: 'Settings' },
   ];
 
   return (
@@ -43,7 +40,6 @@ const AppContent: React.FC = () => {
       <Routes>
         <Route path="/" element={<CameraView />} />
         <Route path="/compare" element={<CompareView />} />
-        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
       <Navigation />
     </div>
@@ -52,11 +48,9 @@ const AppContent: React.FC = () => {
 
 function App() {
   return (
-    <SettingsProvider>
-      <Router>
-        <AppContent />
-      </Router>
-    </SettingsProvider>
+    <Router>
+      <AppContent />
+    </Router>
   );
 }
 

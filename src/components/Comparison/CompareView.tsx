@@ -1,112 +1,74 @@
-
 import React, { useState, useEffect } from 'react';
-import { useSettings } from '../../contexts/SettingsContext';
-import { GitHubService } from '../../services/github';
-import { GeminiService, type AnalysisResult } from '../../services/gemini';
-import { Sparkles, AlertTriangle, Trash2, ArrowRight } from 'lucide-react';
+import { ArrowRight, AlertCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 
+const SECTIONS = ['Door', 'Desktop', 'Bed', 'Couch', 'Workdesk'];
+
+// Available months - you can extend this list as you add more photos
+const AVAILABLE_MONTHS = ['2025-01', '2024-12', '2024-11'];
+
 export const CompareView: React.FC = () => {
-    const { githubToken, githubUsername, githubRepo, geminiApiKey } = useSettings();
-
-    const [sectors] = useState<string[]>(['Desk', 'Bed', 'Closet', 'North Wall']);
-    const [selectedSector, setSelectedSector] = useState<string>(sectors[0]);
-
-    const [availableMonths, setAvailableMonths] = useState<string[]>([]);
-    const [date1, setDate1] = useState<string>('');
-    const [date2, setDate2] = useState<string>('');
+    const [selectedSection, setSelectedSection] = useState<string>(SECTIONS[0]);
+    const [date1, setDate1] = useState<string>(AVAILABLE_MONTHS[1] || AVAILABLE_MONTHS[0]);
+    const [date2, setDate2] = useState<string>(AVAILABLE_MONTHS[0]);
 
     const [image1, setImage1] = useState<string | null>(null);
     const [image2, setImage2] = useState<string | null>(null);
+    const [image1Error, setImage1Error] = useState(false);
+    const [image2Error, setImage2Error] = useState(false);
 
     const [sliderPosition, setSliderPosition] = useState(50);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-
-    // Fetch available months on mount
-    useEffect(() => {
-        const fetchAvailableMonths = async () => {
-            if (!githubToken || !githubUsername || !githubRepo) return;
-
-            const gh = new GitHubService(githubToken, githubUsername, githubRepo);
-            const months = await gh.listAvailableMonths();
-            setAvailableMonths(months);
-
-            // Auto-select most recent 2 months if available
-            if (months.length >= 2) {
-                setDate1(months[1]); // Second most recent
-                setDate2(months[0]); // Most recent
-            } else if (months.length === 1) {
-                setDate1(months[0]);
-                setDate2(months[0]);
-            }
-        };
-
-        fetchAvailableMonths();
-    }, [githubToken, githubUsername, githubRepo]);
 
     useEffect(() => {
-        const fetchImages = async () => {
-            if (!githubToken || !githubUsername || !githubRepo || !date1 || !date2) return;
+        // Load images from public/photos folder
+        const loadImages = () => {
+            if (!date1 || !date2) return;
 
-            const gh = new GitHubService(githubToken, githubUsername, githubRepo);
+            // Reset error states
+            setImage1Error(false);
+            setImage2Error(false);
 
-            try {
-                const content1 = await gh.getFileContent(`data/${date1}/${selectedSector}.jpg`);
-                setImage1(`data:image/jpeg;base64,${content1}`);
-            } catch (e) {
+            // Construct paths to images
+            const path1 = `/DiffShame/photos/${date1}/${selectedSection}.jpg`;
+            const path2 = `/DiffShame/photos/${date2}/${selectedSection}.jpg`;
+
+            // Test if images exist by attempting to load them
+            const img1 = new Image();
+            img1.onload = () => setImage1(path1);
+            img1.onerror = () => {
                 setImage1(null);
-            }
+                setImage1Error(true);
+            };
+            img1.src = path1;
 
-            try {
-                const content2 = await gh.getFileContent(`data/${date2}/${selectedSector}.jpg`);
-                setImage2(`data:image/jpeg;base64,${content2}`);
-            } catch (e) {
+            const img2 = new Image();
+            img2.onload = () => setImage2(path2);
+            img2.onerror = () => {
                 setImage2(null);
-            }
+                setImage2Error(true);
+            };
+            img2.src = path2;
         };
 
-        fetchImages();
-    }, [selectedSector, date1, date2, githubToken, githubUsername, githubRepo]);
-
-    const handleAnalyze = async () => {
-        if (!image1 || !image2 || !geminiApiKey) return;
-
-        setIsAnalyzing(true);
-        setAnalysisResult(null);
-
-        try {
-            const gemini = new GeminiService(geminiApiKey);
-            // Strip data URL prefix
-            const b64_1 = image1.split(',')[1];
-            const b64_2 = image2.split(',')[1];
-
-            const result = await gemini.analyzeImages(b64_2, b64_1); // Compare Current (2) vs Previous (1)
-            setAnalysisResult(result);
-        } catch (e) {
-            console.error("Analysis failed", e);
-            alert("Analysis failed. Check console for details.");
-        } finally {
-            setIsAnalyzing(false);
-        }
-    };
+        loadImages();
+    }, [selectedSection, date1, date2]);
 
     return (
         <div className="flex flex-col h-full p-4 max-w-2xl mx-auto w-full">
             <div className="mb-6 space-y-4">
                 <div className="flex overflow-x-auto gap-2 pb-2 no-scrollbar">
-                    {sectors.map(sector => (
+                    {SECTIONS.map(section => (
                         <button
-                            key={sector}
-                            onClick={() => setSelectedSector(sector)}
+                            key={section}
+                            onClick={() => setSelectedSection(section)}
                             className={clsx(
                                 "px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors",
-                                selectedSector === sector
+                                selectedSection === section
                                     ? "bg-primary text-white"
                                     : "bg-surface text-gray-300 border border-gray-700"
                             )}
                         >
-                            {sector}
+                            {section}
                         </button>
                     ))}
                 </div>
@@ -116,47 +78,40 @@ export const CompareView: React.FC = () => {
                         value={date1}
                         onChange={(e) => setDate1(e.target.value)}
                         className="bg-transparent text-white outline-none text-sm cursor-pointer flex-1"
-                        disabled={availableMonths.length === 0}
                     >
-                        {availableMonths.length === 0 ? (
-                            <option>No data available</option>
-                        ) : (
-                            availableMonths.map(month => (
-                                <option key={month} value={month}>
-                                    {new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
-                                </option>
-                            ))
-                        )}
+                        {AVAILABLE_MONTHS.map(month => (
+                            <option key={month} value={month}>
+                                {new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                            </option>
+                        ))}
                     </select>
                     <ArrowRight size={16} className="text-muted flex-shrink-0" />
                     <select
                         value={date2}
                         onChange={(e) => setDate2(e.target.value)}
                         className="bg-transparent text-white outline-none text-sm text-right cursor-pointer flex-1"
-                        disabled={availableMonths.length === 0}
                     >
-                        {availableMonths.length === 0 ? (
-                            <option>No data available</option>
-                        ) : (
-                            availableMonths.map(month => (
-                                <option key={month} value={month}>
-                                    {new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
-                                </option>
-                            ))
-                        )}
+                        {AVAILABLE_MONTHS.map(month => (
+                            <option key={month} value={month}>
+                                {new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                            </option>
+                        ))}
                     </select>
                 </div>
             </div>
 
             <div className="relative aspect-video bg-black rounded-lg overflow-hidden shadow-xl border border-gray-800 mb-6 group select-none">
-                {!image1 || !image2 ? (
+                {!image1 || !image2 || image1Error || image2Error ? (
                     <div className="flex flex-col items-center justify-center h-full text-muted p-8 text-center">
-                        <p className="text-lg mb-2">No images to compare</p>
-                        {availableMonths.length === 0 ? (
-                            <p className="text-sm">Take your first photo in the Camera tab to get started!</p>
-                        ) : (
-                            <p className="text-sm">Select different months with photos for this sector</p>
+                        <AlertCircle size={48} className="mb-4 text-yellow-500" />
+                        <p className="text-lg mb-2">Photos not found</p>
+                        {image1Error && (
+                            <p className="text-sm mb-1">Missing: <code className="text-primary">{date1}/{selectedSection}.jpg</code></p>
                         )}
+                        {image2Error && (
+                            <p className="text-sm mb-3">Missing: <code className="text-primary">{date2}/{selectedSection}.jpg</code></p>
+                        )}
+                        <p className="text-sm text-gray-400">Add photos to <code>public/photos/YYYY-MM/SectionName.jpg</code></p>
                     </div>
                 ) : (
                     <>
@@ -175,7 +130,7 @@ export const CompareView: React.FC = () => {
                             <img
                                 src={image1}
                                 className="absolute inset-0 w-full h-full object-cover max-w-none"
-                                style={{ width: '100vw', maxWidth: '42rem' }} // Hacky fix for aspect ratio in this container
+                                style={{ width: '100vw', maxWidth: '42rem' }}
                                 alt="Before"
                             />
                         </div>
@@ -213,76 +168,12 @@ export const CompareView: React.FC = () => {
                 )}
             </div>
 
-            <div className="flex justify-center mb-8">
-                <button
-                    onClick={handleAnalyze}
-                    disabled={isAnalyzing || !image1 || !image2}
-                    className={clsx(
-                        "flex items-center px-6 py-3 rounded-full font-medium transition-all shadow-lg shadow-primary/20",
-                        isAnalyzing
-                            ? "bg-gray-700 text-gray-300 cursor-not-allowed"
-                            : "bg-gradient-to-r from-primary to-accent text-white hover:scale-105"
-                    )}
-                >
-                    {isAnalyzing ? (
-                        <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                            Analyzing...
-                        </>
-                    ) : (
-                        <>
-                            <Sparkles size={18} className="mr-2" />
-                            Analyze Changes
-                        </>
-                    )}
-                </button>
+            {/* Instructions */}
+            <div className="bg-surface/50 rounded-lg border border-gray-800 p-4">
+                <p className="text-sm text-muted text-center">
+                    Drag the slider to compare photos from different months
+                </p>
             </div>
-
-            {analysisResult && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="bg-surface rounded-xl border border-gray-800 p-5">
-                        <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                            <AlertTriangle size={20} className="text-yellow-500 mr-2" />
-                            Stagnant Items
-                            <span className="ml-auto text-xs font-normal text-muted bg-gray-800 px-2 py-1 rounded">
-                                {analysisResult.stagnantItems.length} items
-                            </span>
-                        </h3>
-                        <ul className="space-y-2">
-                            {analysisResult.stagnantItems.map((item, i) => (
-                                <li key={i} className="flex items-start text-gray-300 text-sm">
-                                    <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full mt-1.5 mr-2 flex-shrink-0" />
-                                    {item}
-                                </li>
-                            ))}
-                            {analysisResult.stagnantItems.length === 0 && (
-                                <li className="text-muted text-sm italic">No stagnant items detected. Great job!</li>
-                            )}
-                        </ul>
-                    </div>
-
-                    <div className="bg-surface rounded-xl border border-gray-800 p-5">
-                        <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-                            <Trash2 size={20} className="text-red-500 mr-2" />
-                            Trash Candidates
-                            <span className="ml-auto text-xs font-normal text-muted bg-gray-800 px-2 py-1 rounded">
-                                {analysisResult.trashItems.length} items
-                            </span>
-                        </h3>
-                        <ul className="space-y-2">
-                            {analysisResult.trashItems.map((item, i) => (
-                                <li key={i} className="flex items-start text-gray-300 text-sm">
-                                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 mr-2 flex-shrink-0" />
-                                    {item}
-                                </li>
-                            ))}
-                            {analysisResult.trashItems.length === 0 && (
-                                <li className="text-muted text-sm italic">No trash detected. Clean room!</li>
-                            )}
-                        </ul>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
