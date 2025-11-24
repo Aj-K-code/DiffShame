@@ -13,7 +13,8 @@ export class GeminiService {
     }
 
     async analyzeImages(currentImageBase64: string, previousImageBase64: string): Promise<AnalysisResult> {
-        const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        // Use specific version to avoid 404s
+        const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
 
         const prompt = `You're a brutally honest cleaning coach analyzing someone's room progress. Compare these two images taken one month apart.
 
