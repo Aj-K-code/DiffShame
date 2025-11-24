@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { CameraView } from './components/Camera/CameraView';
 import { CompareView } from './components/Comparison/CompareView';
@@ -53,7 +53,7 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <SettingsProvider>
-      <Router basename={import.meta.env.BASE_URL}>
+      <Router>
         <AppContent />
       </Router>
     </SettingsProvider>
